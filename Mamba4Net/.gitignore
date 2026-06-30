@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual envs
+.venv/
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Run artifacts
+runs/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# Datasets (do not commit; see README for sources)
+data/
+traces/
+viewports/
+
+# Logs
+*.log
+wandb/
+mlruns/
+
+# Jupyter
+.ipynb_checkpoints/
