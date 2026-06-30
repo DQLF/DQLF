@@ -57,7 +57,7 @@ torch==2.1.0
   - `trainer.py`: Training pipeline for LLM adaptation.
   - `evaluate.py`: Performance evaluation.
   - `test.py`: Testing adapted LLMs.
-- `qcs/`: Source code for u-value. 
+- `qcs/`: Utility functions for ABR Valuator.
 
 - `run_plm_u.py`: Main entry for running u-NetLLM.
 ## Code Structure for u-Mamba
