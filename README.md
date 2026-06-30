@@ -36,34 +36,34 @@ torch==2.1.0
 ```
 # Code Structure
 ---
-## Code Structure for u-NetLLM
----
-- `artifacts/`: Stores experience pools and result files.
-  - `exp_pool/`: Experience pools.
-  - `results/`: Experimental results.
-- `data/`: Stores datasets and pre-trained model checkpoints.
-  - `traces/`: Bandwidth trace datasets.
-  - `videos/`: Video specifications.
-  - `ft_plms/`: models for NetLLM.
-  - `ft_plms_u/`: models for u-NetLLM.
-  - `all_models/`: models of baseline algorithm.
-
-- `baseline_special/`: Source code for running baseline algorithms. 
-
-- `plm_special/`: Source code for u-NetLLM.
-  - `data/`: Data processing for LLM adaptation.
-  - `models/`: u-NetLLM model implementation.
-  - `utils/`: Utility functions.
-  - `trainer.py`: Training pipeline for LLM adaptation.
-  - `evaluate.py`: Performance evaluation.
-  - `test.py`: Testing adapted LLMs.
-- `qcs/`: Utility functions for ABR Valuator.
-
-- `run_plm_u.py`: Main entry for running u-NetLLM.
-## Code Structure for u-Mamba
----
- Structure for u-Mamba is same as u-NetLLM
-
+- `Genet`: Source code for Genet.
+- `Pensieve`: Source code for Pensieve.
+- `Merina`: Source code for Merina.
+- `NetLLM`: Source code for NetLLM.
+- `Mamba4Net`: Source code for Mamba4Net.
+- `u-NetLLM`: Source code for u-NetLLM
+  - `artifacts/`: Stores experience pools and result files.
+    - `exp_pool/`: Experience pools.
+    - `results/`: Experimental results.
+  - `data/`: Stores datasets and pre-trained model checkpoints.
+    - `traces/`: Bandwidth trace datasets.
+    - `videos/`: Video specifications.
+    - `ft_plms/`: models for NetLLM.
+    - `ft_plms_u/`: models for u-NetLLM.
+    - `all_models/`: models of baseline algorithm.
+  
+  - `baseline_special/`: Source code for running baseline algorithms. 
+  
+  - `plm_special/`: Source code for u-NetLLM.
+    - `data/`: Data processing for LLM adaptation.
+    - `models/`: u-NetLLM model implementation.
+    - `utils/`: Utility functions.
+    - `trainer.py`: Training pipeline for LLM adaptation.
+    - `evaluate.py`: Performance evaluation.
+    - `test.py`: Testing adapted LLMs.
+  - `qcs/`: Utility functions for ABR Valuator.
+  - `run_plm_u.py`: Main entry for running u-NetLLM.
+- `u-Mamba`: Source code for u-Mamba, structure for u-Mamba is same as u-NetLLM
 # Usage
 ---
 ## Usage for u-pretrain
