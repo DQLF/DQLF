@@ -5,6 +5,18 @@ DQLF (Decision-Quality-guided LLM Framework) is a general optimization framework
 ![](./图片1.png "")
 # Environment Setup
 ---
+## Environment for u-Pretain
+---
+```
+numpy==1.24.4
+stable-baselines3==1.1.0
+torch==2.1.0
+torchvision==0.16.0
+torchaudio==2.1.0
+transformers==4.5.1
+packaging==21.3
+protobuf==3.20.0
+```
 ## Environment for u-NetLLM
 ---
 ```
