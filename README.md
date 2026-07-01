@@ -79,7 +79,7 @@ torch==2.1.0
 - `u-Mamba`: Source code for u-Mamba, structure for u-Mamba is same as u-NetLLM
 # Usage
 ---
-## Usage for u-pretrain
+## Usage for u-Pretrain
 ---
 #### Train
 ```
