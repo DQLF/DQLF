@@ -26,45 +26,7 @@ from plm_special.utils.plm_utils import load_plm
 from plm_special.utils.console_logger import ConsoleLogger
 
 from qcs.q_network import QNetwork,ValueNetwork
-from qcs.utils import get_q_loss_mean
 
-def save_model(args, model, save_dir):
-    if args.rank > 0:
-
-        model.plm.save_pretrained(save_dir)
-        torch.save(model.modules_except_plm.state_dict(), os.path.join(save_dir, 'modules_except_plm.bin'))
-    else:
-        torch.save(model.state_dict(), os.path.join(save_dir, 'model.bin'))
-
-def load_model(args, model, model_dir):
-    if args.rank > 0:
-        model.plm.load_adapter(model_dir, adapter_name='default', is_local=True)
-        map_location = args.device_out 
-        modules_except_plm_path = os.path.join(model_dir, 'modules_except_plm.bin')
-        if not os.path.exists(modules_except_plm_path):
-            raise FileNotFoundError(f"Checkpoint not found at {modules_except_plm_path}")
-        state_dict = torch.load(modules_except_plm_path, map_location=map_location)
-        model.modules_except_plm.load_state_dict(state_dict)
-    else:
-        model_path = os.path.join(model_dir, 'model.bin')
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Model file not found at {model_path}")
-        map_location = args.device 
-        state_dict = torch.load(model_path, map_location=map_location)
-        model.load_state_dict(state_dict)
-    return model
-def load_qv_model(q_path,v_path):
-    # ====== 加载 Q 网络 ======
-        state_dim = S_INFO * S_LEN
-        action_dim = 8
-        hidden_dim = 256
-        layernorm = False
-
-        q_dp_path='/home/ubuntu/kevin/q_pretrain/exp/iql/q_train/q_train/113/qf_dp_1000000.pth'
-        qf_dp = QNetwork(state_dim, action_dim, hidden_dim, 8, layernorm).to('cuda')
-        qf_dp.load_state_dict(torch.load(q_dp_path, map_location='cuda'))
-        qf_dp.eval()
-        return qf_dp
 
 def adapt(args, model, exp_dataset, exp_dataset_info, eval_env_settings, checkpoint_dir, best_model_dir,models_dir, eval_process_reward_fn):
     
@@ -81,7 +43,6 @@ def adapt(args, model, exp_dataset, exp_dataset_info, eval_env_settings, checkpo
 
     target_return = exp_dataset_info.max_return * args.target_return_scale
     
-
     start_epoch = 0
     total_train_losses = []
     total_eval_returns = []
@@ -93,7 +54,6 @@ def adapt(args, model, exp_dataset, exp_dataset_info, eval_env_settings, checkpo
         train_stats_path = os.path.join(resume_path,'train_stats.bin')
         if os.path.exists(train_stats_path):
             train_stats = torch.load(train_stats_path,map_location=args.device)
-            # 加载模型参数
             model = load_model(args, model, resume_checkpoint_dir)
             optimizer.load_state_dict(train_stats['optimizer_state_dict'])
 
@@ -103,32 +63,18 @@ def adapt(args, model, exp_dataset, exp_dataset_info, eval_env_settings, checkpo
             total_eval_returns = train_stats['eval_returns']
             best_eval_return = train_stats['best_eval_return']
             
-            print(f'Checkpoint loaded from {resume_checkpoint_dir}\n starting from epoch: {start_epoch}\n best_eval_return: {best_eval_return}')
-        else:
-            raise(f'{train_stats_path} not found\n please check your resume path')
-    else:
-        print(f' start training from 0 epoch\n')
+
     exp_pool_name=args.exp_pool
-    if args.q:
-        name = f'{exp_pool_name}_q_{args.q}_normalized_max_return_{args.normalized_max_return}_q_scale_{args.q_scale}_epochs_{args.num_epochs}'
-    else:
-        name = f'{exp_pool_name}_q_{args.q}_epochs_{args.num_epochs}'
-    
-    if args.q:
-        print('======== Using Q to assist training... ========')
-        qf,qf_dp,vf=load_qv_model(args.q_path,args.v_path)
-        q_info=get_q_loss_mean(exp_dataset, qf=qf)
-        trainer = Trainer_u(args, model=model, qf=qf,qf_dp=qf_dp,vf=vf, q_info=q_info, optimizer=optimizer,
+
+    name = f'{exp_pool_name}_q_{args.q}_normalized_max_return_{args.normalized_max_return}_q_scale_{args.q_scale}_epochs_{args.num_epochs}'
+    trainer = Trainer_u(args, model=model, optimizer=optimizer,
                              exp_dataset=exp_dataset, loss_fn=loss_fn, device=args.device,
                                lr_scheduler=lr_scheduler, grad_accum_steps=args.grad_accum_steps)
     
     for epoch in range(start_epoch,args.num_epochs):
         train_logs, train_losses = trainer.train_epoch()
         total_train_losses.extend(train_losses)
-        
-        print('='* 20, f'Training Iteration #{epoch}', '=' * 20)
-        print('>' * 10, 'Training Information:')
-        pprint(train_logs)
+
         save_per_epoch = args.save_checkpoint_per_epoch
         eval_per_epoch = args.eval_per_epoch
         save_train_stats_per_epoch = 10
@@ -143,7 +89,7 @@ def adapt(args, model, exp_dataset, exp_dataset_info, eval_env_settings, checkpo
             if not os.path.exists(checkpoint_dir_epoch):
                 os.makedirs(checkpoint_dir_epoch)
             save_model(args, model, checkpoint_dir_epoch)
-            print('Checkpoint saved at:', checkpoint_dir_epoch)  
+
         if epoch % eval_per_epoch == 0:
             eval_logs = evaluate_on_env(args, env_settings=eval_env_settings, model=model, target_return=target_return, max_ep_num=args.trace_num,
                                         process_reward_fn=eval_process_reward_fn)
@@ -156,17 +102,8 @@ def adapt(args, model, exp_dataset, exp_dataset_info, eval_env_settings, checkpo
                 best_eval_return = episodes_return
                 best_eval_return_epoch = epoch
                 save_model(args, model, best_model_dir)
-                print('New best model with return {:.6f} at epoch {}'.format(best_eval_return, best_eval_return_epoch))
-                print('Best model saved at:', best_model_dir)
 
-            eval_logs['best_return'] = best_eval_return
-            eval_logs['best_return_epoch'] = best_eval_return_epoch
-            print('>' * 10, 'Evaluation Information')
-            pprint(eval_logs)
-            best_eval_returns_path = os.path.join(models_dir, 'best_eval_return')
-            np.savetxt(best_eval_returns_path, list([best_eval_return_epoch,best_eval_return,episodes_len]), fmt='%.6f', delimiter='\n')
         if epoch % save_train_stats_per_epoch == 0:
-            print('Saving train stats...')
             resume_path = os.path.join(checkpoint_dir, 'resume')
             if not os.path.exists(resume_path):
                 os.makedirs(resume_path)
@@ -185,46 +122,18 @@ def adapt(args, model, exp_dataset, exp_dataset_info, eval_env_settings, checkpo
                 'epoch':epoch
             }
             torch.save(train_stats, os.path.join(resume_path,'train_stats.bin'))
-            print('Train stats saved at:', resume_path)
-        # save training losses , eval_return, plot
-        train_losses_path = os.path.join(models_dir, 'train_losses.txt')
-        eval_returns_path = os.path.join(models_dir, 'eval_returns.txt')
-        
-        np.savetxt(train_losses_path, total_train_losses, fmt='%.6f', delimiter='\n')
-        np.savetxt(
-            eval_returns_path,
-            np.array(total_eval_returns, dtype=np.float64),  # shape=(N,3)
-            fmt='%d\t%.6f\t%.6f',
-            header='epoch\treturn\treward',
-            comments=''
-        )
+
 
 def test(args, model, exp_dataset_info, env_settings, model_dir, result_dir, models_dir,test_process_reward_fn):
 
     model = load_model(args, model, model_dir)
-    print('Load model from:', model_dir)
     target_return = exp_dataset_info.max_return * args.target_return_scale
     lambda_q=args.lambda_q
-    if args.test_with_q:
-        print('======== Using Q/V to assist testing... ========')
-        qf,vf=load_qv_model(args.q_path,args.v_path)
+    qf,vf=load_qv_model(args.q_path,args.v_path)
         
-    else:
-        qf=None
-        vf=None
-        print('======== Not using Q/V ========')
     results = test_on_env(args, model, result_dir, env_settings, target_return, args.trace_num, test_process_reward_fn, qf=qf,vf=vf,lambda_q=lambda_q,seed=args.seed)
 
-    print('Test time:', results['time'],'\nlatences:', results['latences'], '\nMean reward:', results['mean_reward'], '\nMean reward all:', results['mean_reward_all'])
-    best_eval_returns_path = os.path.join(models_dir, 'best_eval_return')
-    with open(best_eval_returns_path, 'r') as f:
-        best_eval_return = f.readlines()
-    best_return = best_eval_return[1]
-    #save bestreturn和testresult
-    test_result_path = os.path.join(models_dir, f'{args.trace}_eval_{float(best_return):.6f}_test_{results["mean_reward"]:.6f}')
-    with open(test_result_path, 'w', encoding='utf-8') as f:
-        f.write(f'best_eval_return:{best_return}\n')
-        f.write(str(results))
+
 
 
 def run(args):
@@ -270,11 +179,7 @@ def run(args):
     # 4. create model
     
     # 4.1 load plm
-    # args.device_out and args.device_mid are used for model parallelism (currently only support llama) 
-    # For data/modules near the input side, we use args.device.
-    # For data/modules near the output side, we use args.device_out.
-    # For data/modules lying in the middle, we use args.device_mid (it can be None). 
-    # If args.device == args.device_out == args.device_mid (if not None), everything will be the same as using only one device.
+
     if args.plm_type == 'llama':
         model_path = cfg.plm_dir_llama
     else:
@@ -297,7 +202,6 @@ def run(args):
 
     # 5. handling directory and path
 
-    # extract training experience pool information
     train_exp_pool_info = args.exp_pool
 
     modules = ''
@@ -394,11 +298,8 @@ if __name__ == '__main__':
     parser.add_argument('--q', action="store_true", help='use Q to assist training')
     parser.add_argument('--q-path', type=str, help='path of the pretrained q network', \
                         default=cfg.q_path)
-    parser.add_argument('--normalized_max_return', type=float, help='for calculate q_alpha in weighted_q_loss',\
-                         default=0.8)
     parser.add_argument('--q-scale', type=float, help='scale for q value', default=4.0)
     parser.add_argument('--lambda-q', type=float, help='lambda for q value in testing', default=0.1)
-    parser.add_argument('--swanlab', action="store_true", help='use swanlab to log experiment')
     
     args = parser.parse_args()
 

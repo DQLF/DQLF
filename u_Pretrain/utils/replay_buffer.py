@@ -11,42 +11,6 @@ import pickle
 import os
 import json
 
-class EpisodeReplayBuffer(object):
-    def __init__(self, capacity, trajectories=[]):
-        self.capacity = capacity
-        if len(trajectories) <= self.capacity:
-            self.trajectories = trajectories
-        else:
-            returns = [traj["rewards"].sum() for traj in trajectories]
-            sorted_inds = np.argsort(returns)  # lowest to highest
-            self.trajectories = [
-                trajectories[ii] for ii in sorted_inds[-self.capacity :]
-            ]
-
-        self.start_idx = 0
-
-    def __len__(self):
-        return len(self.trajectories)
-
-    def add_new_trajs(self, new_trajs):
-        if len(self.trajectories) < self.capacity:
-            self.trajectories.extend(new_trajs)
-            self.trajectories = self.trajectories[-self.capacity :]
-        else:
-            self.trajectories[
-                self.start_idx : self.start_idx + len(new_trajs)
-            ] = new_trajs
-            self.start_idx = (self.start_idx + len(new_trajs)) % self.capacity
-
-        assert len(self.trajectories) <= self.capacity
-
-pool_paths = {
-        "bba": '/home/ubuntu/kevin/q_pretrain/check_q/exp_pool/train/bba/seed_42_trace_num_-1_fixed_False/bba.pkl',
-        "mpc": '/home/ubuntu/kevin/q_pretrain/check_q/exp_pool/train/mpc/seed_42_trace_num_-1_fixed_False/mpc.pkl',
-        "genet": '/home/ubuntu/kevin/q_pretrain/check_q/exp_pool/train/genet/seed_42_trace_num_-1_fixed_False/genet.pkl',
-        "pensieve": '/home/ubuntu/kevin/q_pretrain/check_q/exp_pool/train/pensieve/seed_42_trace_num_-1_fixed_False/pensieve.pkl',
-        "merina": '/home/ubuntu/kevin/q_pretrain/check_q/exp_pool/train/merina/seed_42_trace_num_-1_fixed_False/merina.pkl',
-    }
 class ReplayBuffer(object):
     def __init__(self, state_dim, action_dim, max_size=int(1e6)):
         self.max_size = max_size
@@ -130,34 +94,6 @@ class ReplayBuffer(object):
                 dp = json.load(f)
             pool = pickle.load(open(pool_paths[algo_name], 'rb'))
             num_trajs = len(pool.states) // 47
-            for i in range(num_trajs):
-                if i % 1 == 0:
-                    step=k+i//1
-                    print(f"[Progress] {i}/{num_trajs} for {algo_name}",end='\r')
-                    state = pool.states[i*47:(i+1)*47]
-                    state = np.array(state).reshape(len(state), -1)
-                    self.state[step*47:(step+1)*47] = state
-                    action = np.array(pool.actions[i*47:(i+1)*47]) # (19928,)
-                    actions_onehot = np.eye(8)[action]  # (19928, 8)
-                    self.action[step*47:(step+1)*47] = actions_onehot
-                    self.reward[step*47:(step+1)*47] = np.array(pool.rewards[i*47:(i+1)*47]).reshape(-1, 1)
-                    self.not_done[step*47:(step+1)*47] = 1. - np.array(pool.dones[i*47:(i+1)*47]).reshape(-1, 1)
-                    self.size = (step+1)*47
-
-                    # 构造 next_state：将当前状态往后一位平移
-                    self.next_state = np.zeros_like(self.state)
-                    self.next_state[:-1] = self.state[1:]
-                    # 如果当前 step 是终止状态，则 next_state 仍然保留为0或state本身
-                    dones = np.array(pool.dones[i*47:(i+1)*47]).reshape(-1)
-                    for j in range(len(dones) - 1):
-                        if dones[j]:
-                            self.next_state[step*47+j] = 0#self.state[i]  # 或者置为0
-                    traj_name = pool.traj_names[i*47]
-                    traj_name = traj_name+f"_{i}"
-                    traj_dp=dp[traj_name]
-                    # self.dp.append(np.array(traj_dp).reshape(-1, 1))
-                    self.dp[step*47:(step+1)*47] = np.array(traj_dp).reshape(-1, 1)
-            k=step+1
 
         #计算rtg
         rtg = np.zeros_like(self.reward)
@@ -174,19 +110,7 @@ class ReplayBuffer(object):
         action = np.array(exp_pool.actions)  # (19928,)
         actions_onehot = np.eye(8)[action]  # (19928, 8)
         self.action = actions_onehot  # (19928, 8)
-        
-        # 奖励处理
-        rewards = np.array(exp_pool.rewards).reshape(-1) # 先转为1维方便计算
-        self.reward = rewards.reshape(-1, 1)
-        
-        dones = np.array(exp_pool.dones).reshape(-1)
-        self.not_done = 1. - dones.reshape(-1, 1)
-        self.size = self.state.shape[0]
 
-        # --- 计算 RTG (Reward-to-Go) ---
-        rtg = np.zeros_like(rewards)
-        running_return = 0
-        # 从后往前遍历
         for i in reversed(range(self.size)):
             if dones[i]:
                 running_return = 0 # 如果当前是终止状态，重置累积奖励
